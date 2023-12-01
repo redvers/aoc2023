@@ -129,7 +129,7 @@ behaviour".
 
 ### The FileRunner Actor
 
-#### constructor
+### constructor
 
 The `FileRunner` actor stores as instance variables the provided arguments and the
 running total:
@@ -157,7 +157,7 @@ actor FileRunner
 
 ```
 
-#### run(), (and an aside about runtime errors)
+### run(), (and an aside about runtime errors)
 
 As Pony is strongly typed and protected from unsafe memory operations by using
 refcaps (we'll talk about that later...), the aim is to catch as many bugs
@@ -208,7 +208,7 @@ last line is processed.
       report()
 ```
 
-#### process_line, where all the magic happens...
+### process_line, where all the magic happens...
 
 This implements the methodology described in the first section. It should be
 fairly readable:
@@ -291,7 +291,7 @@ need to add anything.
     try total = total + (nl(0)? * 10).u64() + nl.apply(nl.size() - 1)?.u64() end
 ```
 
-#### report(), the final display
+### report(), the final display
 
 Once all the lines have been processed, we send a message to the actor which
 gatekeeps stdout to print out our results.
