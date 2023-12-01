@@ -66,7 +66,7 @@ get the functionality needed.
 
 Eg: An XML Parsing Library doesn't need a Network or Shell token so don't
 provide it one.
-                                                                              */
+
 ```pony
 actor Main
   let env: Env
@@ -77,10 +77,13 @@ actor Main
 
 ### Start a FileRunner Actor per filename
 
-The provided `Env` contains the command-line arguments as provided at runtime
-as an `Array[String val] val`. An immutable array of immutable strings.
+The provided `Env` has the field `env.out` which contains the command-line
+arguments as provided at runtime as an `Array[String val] val`. An immutable
+array of immutable strings.
 
-- `.slice(1)` creates a copy of this array, from index 1 to the end.  Note, we
+Upon this array, we execute:
+
+- `.slice(1)` creates a _copy_ of this array, from index 1 to the end.  Note, we
 start at index of 1 because according to POSIX, the zeroth entry is the filename
 of the executable itself.
 
