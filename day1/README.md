@@ -233,7 +233,7 @@ We loop when our index is less than the size of the array.
       try
 ```
 
-We set the ASCII value of the character at the location indicated by index.
+We get the ASCII value of the character at the location indicated by index.
 
 ```pony
         let s: U8 = line'.at_offset(index.isize())?
