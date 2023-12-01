@@ -195,6 +195,7 @@ and send it as a message to ourselves where they will be processed one line
 at a time.
 
 ```pony
+      let lines: FileLines = FileLines(file)
       for line in lines do
         process_line(consume line)
       end
