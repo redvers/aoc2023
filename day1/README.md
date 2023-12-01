@@ -1,44 +1,126 @@
 # Day 1
-      
+
+## Problem Synopsis
+
+The following input:
+
+```quote
+two1nine
+eightwothree
+abcone2threexyz
+xtwone3four
+4nineeightseven2
+zoneight234
+7pqrstsixteen
+```
+
+Take the first and last number in each line to make a two digit number.
+
+Note: The line `eightwothree` should result in `8 2 3`, so we can't just
+use a Regex to `s/eight/8/` else we'll end up with `8wo3`.
+
+Sum all of these for a final total
+
+## Solution Methodology:
+
+- One actor per provided filename.
+
+- Read each file a line at a time using an iterator.  Process using behaviours
+in order to allow pony's runtime to GC more frequently if needed.
+
+- Scan each line a character at a time looking for a numeric value, or a number
+in text starting at index's offset.  If either are found, insert into temporary
+array.
+
+- Take the first and last numbers in the array to generate our number and add
+to a running total.
+
+- When all lines are complete in a file, display the filename and total.
+
+
+## The code
+
+### Package Dependencies
+
+The only package above and beyond the standard library is the "files" package.
+
 ```ponyc
 use "files"
+```
 
-/*
-    All pony programs enter with a single "Main" actor.  Pony passes one
-  argument, the "environment" which is used to control access to resources.
+### Pony's Initial Entry
 
-    More of this later...
+All pony programs start their execution with a single "Main" actor.  The Pony
+runtime provides your program's initial entry point with an object called
+`Env`.
+
+This is the "root of trust" in your pony program.
+
+No Pony code can access resources such as stdin, stdout, filesystem, network,
+shell, environmental variables etc without an unforgeable token from this
+`Env`.
+
+The aim is to mitigate risks from supply-chain attacks. Best practice is to
+provide the token that provides the minimal access to resources in order to
+get the functionality needed.
+
+Eg: An XML Parsing Library doesn't need a Network or Shell token so don't
+provide it one.
                                                                               */
+```ponyc
 actor Main
   let env: Env
 
   new create(env': Env) =>
     env = env'
+```
 
-/*
-    env.args an array of Strings (Array[String]), the command line arguments
+### Start a FileRunner Actor per filename
 
-    .slice(1) creates a copy of this array, from index 1 to the end.
-    .values() creates an iterator object that is used by the for loop
-                                                                              */
+The provided `Env` contains the command-line arguments as provided at runtime
+as an `Array[String val] val`. An immutable array of immutable strings.
+
+- `.slice(1)` creates a copy of this array, from index 1 to the end.  Note, we
+start at index of 1 because according to POSIX, the zeroth entry is the filename
+of the executable itself.
+
+- `.values()` creates an iterator object that is used by the for loop
+
+           
+```ponyc
     for filename in env.args.slice(1).values() do
+```
 
-/* 
-    We spawn a new "FileRunner" actor for every filename that is provided
-  on the command-line. This results in all the files being processed in
-  parallell.
+Creating a reference to an Actor spawns it. The default name for an actor or class
+constructor is `create`. In our case, we provide it with three arguments:
 
-    Pony's security model restricts access to resources such as files, network,
-  shell, environmental variables etc by using unforgable tokens.  We pass two
-  of these tokens and the filename to the FileRunner actor during creation.
+- `env.out`, this is a reference to the actor which gatekeeps the ability to
+produce output to stdout.
 
-    env.out is a reference to an actor that allows you to print to standard out
-    FileAuth is a token that allows access to the filesystem.
-                                                                              */
+- `FileAuth(env.root)`, this is a token that provides permission for the
+spawned actor to access the filesystem.
+
+```ponyc
       let fn: FileRunner = FileRunner(env.out, FileAuth(env.root), filename)
+```
+
+### Brief aside for behaviours
+
+A behaviour in pony is an asynchronous function call. There are no return values
+because it's asyncronous - no waiting.
+
+If you wish to model it in your head as a "message sent to an actor's mailbox
+where an actor will act on each one in the order in which it is received",
+then that's an excellent model to have.
+
+As such you can think of this next call as "send to the FileRunner actor whose
+reference is stored in the variable `fn`, a message that says "execute the `run()`
+behaviour".
+
+```ponyc
       fn.run()
 		end
-
+```
 
 actor FileRunner
   let stdout: OutStream tag
