@@ -44,7 +44,7 @@ to a running total.
 
 The only package above and beyond the standard library is the "files" package.
 
-```ponyc
+```pony
 use "files"
 ```
 
@@ -67,7 +67,7 @@ get the functionality needed.
 Eg: An XML Parsing Library doesn't need a Network or Shell token so don't
 provide it one.
                                                                               */
-```ponyc
+```pony
 actor Main
   let env: Env
 
@@ -87,7 +87,7 @@ of the executable itself.
 - `.values()` creates an iterator object that is used by the for loop
 
            
-```ponyc
+```pony
     for filename in env.args.slice(1).values() do
 ```
 
@@ -100,7 +100,9 @@ produce output to stdout.
 - `FileAuth(env.root)`, this is a token that provides permission for the
 spawned actor to access the filesystem.
 
-```ponyc
+- `filename` an immutable string containing the filename we want to process.
+
+```pony
       let fn: FileRunner = FileRunner(env.out, FileAuth(env.root), filename)
 ```
 
@@ -117,7 +119,7 @@ As such you can think of this next call as "send to the FileRunner actor whose
 reference is stored in the variable `fn`, a message that says "execute the `run()`
 behaviour".
 
-```ponyc
+```pony
       fn.run()
 		end
 ```
