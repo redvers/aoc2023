@@ -124,12 +124,27 @@ behaviour".
 		end
 ```
 
+### The FileRunner Actor
+
+#### constructor
+
+The `FileRunner` actor stores as instance variables the provided arguments and the
+running total:
+
+- `stdout`, the reference to the actor that gatekeeps stdout.
+
+- `fileauth`, the unforgable token that provides access to the filesystem.
+
+- `filename`, the filename to open and process.
+
+- `total`, A U64 (unsigned 64 bit integer)
+
+```pony
 actor FileRunner
   let stdout: OutStream tag
   let fileauth: FileAuth val
   let filename: String val
 
-//We're going to keep our running total as an instance variable in this actor
   var total: U64 = 0
 
   new create(stdout': OutStream tag, fileauth': FileAuth val, filename': String val) =>
@@ -137,52 +152,113 @@ actor FileRunner
     fileauth = fileauth'
     filename = filename'
 
+```
+
+#### run(), (and an aside about runtime errors)
+
+As Pony is strongly typed and protected from unsafe memory operations by using
+refcaps (we'll talk about that later...), the aim is to catch as many bugs
+during compilation as opposed to at runtime.
+
+In other less-strict languages, bugs can be created by things like not checking
+return values when doing things like opening files that you don't have permission
+to open.
+
+Pony forces you to deal with failures with typing:
+
+In the `files` package, when you try to open a file for reading, your return
+value is either `File`, or `FileErrNo`.  As you can't perform file operations
+on a `FileErrNo`, the compiler forces you to ensure that at runtime your
+`OpenFile` returned a `File`.
+
+`match` matches types:
+
+```pony
   be run() => None
-//  Open the file for reading
     let path = FilePath(fileauth, filename)
 
-//  We either get a File object, or something else, if the file can't be opened.
     match OpenFile(path)
     | let file: File =>
-      let lines: FileLines = FileLines(file)
-
-      for line in lines do
-        // We send every line in the file as a message to ourself
-        process_line(consume line)
-      end
-
-      // After all the lines have been queued, which queues up report AFTER THEM
-      report()
+.
+.
+.
     else
       stdout.print("Error opening file '" + filename + "'")
     end
+```
 
+In the successful path where a File is returned, we loop through each line
+and send it as a message to ourselves where they will be processed one line
+at a time.
+
+```pony
+      for line in lines do
+        process_line(consume line)
+      end
+```
+
+Once all the lines are sent, we send a `report()` message which, since actors
+ALWAYS process these behaviours in the order received, will happen after the
+last line is processed.
+
+```pony
+      report()
+```
+
+#### process_line, where all the magic happens...
+
+This implements the methodology described in the first section. It should be
+fairly readable:
+
+- `line'`, the line we're processing as an immutable string.
+
+- `index`, the position in the `line'` String that we are currently analyzing.
+
+- `nl`, A new Array of U8 (unsigned 8 bit numbers) which represent each found number
+
+```pony
   be process_line(line': String iso) =>
-/*
-    Lines like eightwone should result in 8 2 1. If we just used substitution
-  then the result would be 8 w 1.                                             */
     var index: USize = 0
-
-//  As numbers are found, we add them to an Array[U8]
     var nl: Array[U8] = recover Array[U8] end
+```
 
+We loop when our index is less than the size of the array.
+
+```pony
     while (index < line'.size()) do
       try
-        // s is the ASCII encoding of the character at index
-        let s: U8 = line'.at_offset(index.isize())?
+```
 
-        /*
-          If the ASCII value is between the ASCII values '0' and '9', add the
-          actual values to the array
-                                                                              */
+We set the ASCII value of the character at the location indicated by index.
+
+```pony
+        let s: U8 = line'.at_offset(index.isize())?
+```
+
+We branch if the ASCII value for s is between the ASCII value for 0 and 9,
+inclusive.  If they are, we subtract the ASCII value for '0' from s and
+push that into `nl`.  This works of course because 0-9 and consecutive in
+the ASCII table.
+
+Increment index.
+
+Go around the loop again.
+
+```pony
         if ((s >= '0') and (s <= '9')) then
           nl.push(s - '0')
           index = index + 1
           continue
         end
       end
+```
 
-    // Scan and insert if the strings are found
+Instead of using regexes, we just have a series of if-then cases to look for
+the textual representations of the numbers.
+
+Increment the index and back around the loop we go:
+
+```pony
       if (line'.substring(index.isize(), index.isize() + 4) == "zero") then nl.push(0) end 
       if (line'.substring(index.isize(), index.isize() + 3) == "one") then nl.push(1) end
       if (line'.substring(index.isize(), index.isize() + 3) == "two") then nl.push(2) end
@@ -196,16 +272,33 @@ actor FileRunner
 
       index = index + 1
     end
+```
 
-    /*
-        Convert the first and last number in the temporary array into a two digit number
-      and add it to the total
-                                                                              */
+The next case is to take the first and last numbers, convert to a two-digit number and
+add to the running total.  But what happens if there are no numbers and the array is
+empty?
+
+Pony forces you to make a decision. If we try and read a value which is out of the
+range of the Array it will raise an error.
+
+We wrap the math in a try - end, because if there's no numbers present - we don't
+need to add anything.
+
+```pony
     try total = total + (nl(0)? * 10).u64() + nl.apply(nl.size() - 1)?.u64() end
+```
 
-/*
-    After all the lines are processed, print out the filename and total
-                                                                              */
+#### report(), the final display
+
+Once all the lines have been processed, we send a message to the actor which
+gatekeeps stdout to print out our results.
+
+```pony
   be report() =>
     stdout.print(filename + ": " + total.string())
 ```
+
+## Final Note
+
+Remember that as each file is processed by a different actor, the order in which
+the results are displayed is not deterministic.
