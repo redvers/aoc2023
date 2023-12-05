@@ -1,2 +1,6 @@
 *.swp
 day1/day1
+day2/day2
+*/_corral
+*/_repos
+*/lock.json
