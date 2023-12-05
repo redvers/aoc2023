@@ -127,6 +127,84 @@ actor FileRunner
       if (fval < minval) then minval = fval end
     end
     stdout.print("Closest Location: " + minval.string())
+    part2()
+
+  be part2() =>
+    report_range(0, 110)
+
+  
+  fun ref report_range(a: USize, b': USize): Array[(USize, USize)] =>
+    let rv: Array[(USize, USize)] = Array[(USize, USize)]
+    let inb: USize = (a + b') - 1
+    var lowerbound: USize = a
+    try
+      let sortedmappers: Array[Mapper] = Sort[Array[Mapper], Mapper](maps(Seed2Soil)?)
+        while (sortedmappers.size() > 0) do
+          var clow: USize = 0
+          var chigh: USize = 0
+          let currentmapper: Mapper = sortedmappers.shift()?
+
+
+          /* Case 1: Both lower and upper bounds are less than our current
+                     Mapper                                                */
+          if ((lowerbound < currentmapper.startb) and 
+              (inb < currentmapper.startb)) then
+                Debug.out("1:[Mapper:Direct]: InOutMap: " + lowerbound.string() +
+                          "->" + inb.string())
+              break
+          end
+
+          /* Case 2: Range goes from under to inside the Mapper            */
+          if ((lowerbound < currentmapper.startb) and
+              (inb >= currentmapper.startb) and
+              (inb <= currentmapper.endb)) then
+                Debug.out("2[Mapper:Direct]: InOutMap: " + lowerbound.string() +
+                          "->" + (currentmapper.startb -1).string())
+              currentmapper.in_actual_range(currentmapper.startb, inb)?
+            break
+          end
+
+          /* Case 2.5: Range goes from under to over the Mapper            */
+          if ((lowerbound < currentmapper.startb) and
+              (inb >= currentmapper.startb) and
+              (inb > currentmapper.endb)) then
+                Debug.out("2.5[Mapper:Direct]: InOutMap: " + lowerbound.string() +
+                          "->" + (currentmapper.startb -1).string())
+              currentmapper.in_actual_range(currentmapper.startb, inb)?
+              lowerbound = currentmapper.endb + 1
+              continue
+          end
+          
+          /* Case 3: Range goes from inside to inside the Mapper           */
+          if ((lowerbound >= currentmapper.startb) and
+              (inb <= currentmapper.endb)) then
+              Debug.out("3: " + lowerbound.string() + "->" + inb.string())
+              currentmapper.in_actual_range(lowerbound, inb)?
+              break
+          end
+
+          /* Case 4: Range goes from inside to above the Mapper           */
+          if ((lowerbound >= currentmapper.startb) and
+              (inb > currentmapper.endb)) then
+              Debug.out("4: " + lowerbound.string() + "->" + inb.string())
+              currentmapper.in_actual_range(lowerbound, currentmapper.endb)?
+              lowerbound = currentmapper.endb + 1
+              continue
+          end
+
+
+          Debug.out("I should never happen")
+
+//          currentmapper.debug()
+
+
+        end
+    else
+      Debug.out("Something failed")
+      rv
+    end
+    rv
+
 
   fun report_seed(seed: USize): USize =>
     let soil:  USize = apply_map(Seed2Soil, seed)
@@ -153,7 +231,7 @@ actor FileRunner
     try
       for mapp in maps(maptype)?.values() do
         if (mapp.in_range(seed)) then
-          mapp.debug(seed)
+//          mapp.debug(seed)
           rv = mapp(seed)?
           break
         end
@@ -183,9 +261,12 @@ class Mapper
   var endb: USize = 0
   var length: USize = 0
 
-  fun debug(inval: USize) =>
-    Debug("[Mapper:" + mytype.string() + "] inval: " + inval.string() +
-          ", startb: " + startb.string() + ", endb: " + endb.string()) 
+  fun debug() =>
+    let offset: USize = starta - startb
+
+    Debug.out("[Mapper:" + mytype.string() + "]: " +
+              "InMap: " + startb.string() + "->" + endb.string() +
+              ", OutRange: " + (startb+offset).string() + "->" + (endb + offset).string())
 
   fun in_range(inval: USize): Bool =>
     if ((inval >= startb) and (inval <= endb)) then
@@ -194,8 +275,57 @@ class Mapper
       false
     end
 
+
+  fun in_actual_range(a: USize, b: USize): (USize, USize)? =>
+    var lower: USize = 0
+    var upper: USize = 0
+    if (startb > b) then
+    Debug.out("in: " + a.string() + "->" + b.string() +
+              ", InMap: " + startb.string() + "->" + endb.string() +
+              ", EndRange: " + lower.string() + "->" + upper.string())
+      Debug.out("Out of range - too low")
+      error
+    end
+    if (a > endb) then
+    Debug.out("in: " + a.string() + "->" + b.string() +
+              ", InMap: " + startb.string() + "->" + endb.string() +
+              ", EndRange: " + lower.string() + "->" + upper.string())
+      Debug.out("Out of range - too high")
+      error
+    end
+
+    if (a <= startb) then
+      lower = startb
+    else
+      lower = a
+    end
+
+    if (b >= endb) then
+      upper = endb
+    else
+      upper = b
+    end
+
+    let offset: USize = starta - startb
+
+    Debug.out("[Mapper:" + mytype.string() + "]: in: " + a.string() + "->" + b.string() +
+              ", InMap: " + startb.string() + "->" + endb.string() +
+              ", InRange: " + lower.string() + "->" + upper.string() +
+              ", OutRange: " + (lower+offset).string() + "->" + (upper + offset).string())
+
+    (lower, upper)
+
+
+
   fun apply(inval: USize): USize ? =>
     if (not in_range(inval)) then error end
     let offset: USize = inval - startb
     starta + offset
 
+  fun le(m: Mapper box): Bool => (startb.le(m.startb))
+  fun lt(m: Mapper box): Bool => (startb.lt(m.startb))
+  fun ge(m: Mapper box): Bool => (startb.ge(m.startb))
+  fun gt(m: Mapper box): Bool => (startb.gt(m.startb))
+  fun compare(m: Mapper box): Compare => (startb.compare(m.startb))
+  fun eq(m: Mapper box): Bool => (startb.eq(m.startb))
+  fun ne(m: Mapper box): Bool => (startb.ne(m.startb))
