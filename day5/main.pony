@@ -12,7 +12,6 @@ actor Main
     for filename in env.args.slice(1).values() do
       let fn: FileRunner = FileRunner(env.out, FileAuth(env.root), filename)
       fn.parse_file()
-      
 		end
 
 
@@ -126,31 +125,82 @@ actor FileRunner
       let fval: USize = report_seed(seed)
       if (fval < minval) then minval = fval end
     end
-    stdout.print("Closest Location: " + minval.string())
+    stdout.print("Closest Location A: " + minval.string())
     part2()
 
   be part2() =>
-    report_range(0, 110)
+    let s: Array[USize] = seeds.clone()
+    let rv: Array[(USize, USize)] = Array[(USize, USize)]
+    try
+      while (s.size() > 0) do
+        var a: USize = s.shift()?
+        var b: USize = s.shift()?
+        let inb: USize = (a + b) - 1
+        rv.push((a, inb))
+      end
+    end
+
+    let soil: Array[(USize, USize)] = run_ranges(Seed2Soil, rv)
+    show_ranges("Soil: ", soil)
+    let fert: Array[(USize, USize)] = run_ranges(Soil2Fertilizer, soil)
+    show_ranges("Fertilizer: ", fert)
+    let water: Array[(USize, USize)] = run_ranges(Fertilizer2Water, fert)
+    show_ranges("Water: ", water)
+    let light: Array[(USize, USize)] = run_ranges(Water2Light, water)
+    show_ranges("Light: ", light)
+    let temp: Array[(USize, USize)] = run_ranges(Light2Temperature, light)
+    show_ranges("Temp: ", temp)
+    let humid: Array[(USize, USize)] = run_ranges(Temperature2Humidity, temp)
+    show_ranges("Humid: ", humid)
+    let locat: Array[(USize, USize)] = run_ranges(Humidity2Location, humid)
+    show_ranges("Locations: ", locat)
+
+    minimal_location(locat)
+
+  fun ref minimal_location(locat: Array[(USize, USize)]) =>
+    var min: USize = -1
+    for f in locat.values() do
+      if (f._1 < min) then min = f._1 end
+    end
+    stdout.print("Closest Location B: " + min.string())
+      
+
+  fun ref run_ranges(ps: ParseState, x: Array[(USize, USize)]): Array[(USize, USize)] =>
+    var rv: Array[(USize, USize)] = Array[(USize, USize)]
+    for f in x.values() do
+      for g in report_range(ps, f._1, f._2).values() do
+        rv.push(g)
+      end
+    end
+    rv
+
+    fun ref show_ranges(str: String val, ss: Array[(USize, USize)]) =>
+      for f in ss.values() do
+        Debug.out(str + "[" + f._1.string() + "->" + f._2.string() + "]")
+      end
 
   
-  fun ref report_range(a: USize, b': USize): Array[(USize, USize)] =>
+  fun ref report_range(ps: ParseState, a: USize, inb: USize): Array[(USize, USize)] =>
+    Debug.out("report_range: " + a.string() + "->" + inb.string())
     let rv: Array[(USize, USize)] = Array[(USize, USize)]
-    let inb: USize = (a + b') - 1
     var lowerbound: USize = a
+    var cleanup: Bool = true
     try
-      let sortedmappers: Array[Mapper] = Sort[Array[Mapper], Mapper](maps(Seed2Soil)?)
-        while (sortedmappers.size() > 0) do
+      let sortedmappers: Array[Mapper] = Sort[Array[Mapper], Mapper](maps(ps)?)
+        for currentmapper in sortedmappers.values() do
           var clow: USize = 0
           var chigh: USize = 0
-          let currentmapper: Mapper = sortedmappers.shift()?
-
 
           /* Case 1: Both lower and upper bounds are less than our current
                      Mapper                                                */
+          currentmapper.debug()
           if ((lowerbound < currentmapper.startb) and 
               (inb < currentmapper.startb)) then
                 Debug.out("1:[Mapper:Direct]: InOutMap: " + lowerbound.string() +
                           "->" + inb.string())
+                rv.push((lowerbound, inb))
+          currentmapper.debug()
+              cleanup = false
               break
           end
 
@@ -160,7 +210,9 @@ actor FileRunner
               (inb <= currentmapper.endb)) then
                 Debug.out("2[Mapper:Direct]: InOutMap: " + lowerbound.string() +
                           "->" + (currentmapper.startb -1).string())
-              currentmapper.in_actual_range(currentmapper.startb, inb)?
+                rv.push((lowerbound, (currentmapper.startb - 1)))
+                rv.push(currentmapper.in_actual_range(currentmapper.startb, inb)?)
+              cleanup = false
             break
           end
 
@@ -170,8 +222,10 @@ actor FileRunner
               (inb > currentmapper.endb)) then
                 Debug.out("2.5[Mapper:Direct]: InOutMap: " + lowerbound.string() +
                           "->" + (currentmapper.startb -1).string())
-              currentmapper.in_actual_range(currentmapper.startb, inb)?
+                rv.push((lowerbound, currentmapper.startb - 1))
+                rv.push(currentmapper.in_actual_range(currentmapper.startb, inb)?)
               lowerbound = currentmapper.endb + 1
+              cleanup = true
               continue
           end
           
@@ -179,26 +233,26 @@ actor FileRunner
           if ((lowerbound >= currentmapper.startb) and
               (inb <= currentmapper.endb)) then
               Debug.out("3: " + lowerbound.string() + "->" + inb.string())
-              currentmapper.in_actual_range(lowerbound, inb)?
+              rv.push(currentmapper.in_actual_range(lowerbound, inb)?)
+              cleanup = false
               break
           end
 
           /* Case 4: Range goes from inside to above the Mapper           */
           if ((lowerbound >= currentmapper.startb) and
+              (lowerbound <= currentmapper.endb) and
               (inb > currentmapper.endb)) then
               Debug.out("4: " + lowerbound.string() + "->" + inb.string())
-              currentmapper.in_actual_range(lowerbound, currentmapper.endb)?
+              rv.push(currentmapper.in_actual_range(lowerbound, currentmapper.endb)?)
               lowerbound = currentmapper.endb + 1
               continue
           end
 
-
-          Debug.out("I should never happen")
-
-//          currentmapper.debug()
-
-
         end
+      if (cleanup) then
+        rv.push((lowerbound, inb))
+        Debug.out("Cleanup: " + lowerbound.string() + "->" + inb.string())
+      end
     else
       Debug.out("Something failed")
       rv
@@ -215,7 +269,7 @@ actor FileRunner
     let humid: USize = apply_map(Temperature2Humidity, temp)
     let locat: USize = apply_map(Humidity2Location, humid)
 
-    stdout.print("Seed: " + seed.string() + 
+    Debug.out("Seed: " + seed.string() + 
             ", Soil: " + soil.string() +
             ", Fert: " + fert.string() +
             ", Water: " + water.string() +
@@ -231,7 +285,6 @@ actor FileRunner
     try
       for mapp in maps(maptype)?.values() do
         if (mapp.in_range(seed)) then
-//          mapp.debug(seed)
           rv = mapp(seed)?
           break
         end
@@ -313,7 +366,7 @@ class Mapper
               ", InRange: " + lower.string() + "->" + upper.string() +
               ", OutRange: " + (lower+offset).string() + "->" + (upper + offset).string())
 
-    (lower, upper)
+    (lower + offset, upper + offset)
 
 
 
