@@ -1,5 +1,6 @@
 use "files"
 use "debug"
+use "crypto"
 use "collections"
 use @exit[None](i: USize)
 use @printf[U8](fmt: Pointer[U8] tag, ...)
@@ -21,7 +22,11 @@ actor FileRunner
   let fileauth: FileAuth val
   let filename: String val
 
-  let dish: Array[String ref] = Array[String ref]
+  var dish: Array[String ref] = Array[String ref]
+  var disht: Array[String ref] = Array[String ref]
+
+  var cnt: USize = 1
+  var hh: Array[U8] val = recover val Array[U8] end
 
   new create(stdout': OutStream tag, fileauth': FileAuth val, filename': String val) =>
     stdout = stdout'
@@ -36,7 +41,9 @@ actor FileRunner
       let lines: FileLines = FileLines(file)
 
       for line' in lines do
-        dish.push(consume line')
+        var s: String ref = consume line'
+        dish.push(s.clone())
+        disht.push(s.clone())
       end
     else
       stdout.print("Error opening file '" + filename + "'")
@@ -47,9 +54,52 @@ actor FileRunner
     else
       Debug("Can't slide north")
     end
-    Debug.out("")
-    display_dish()
-    score_dish()
+
+    while (cnt < 10000) do
+      run_loop()
+      cnt = cnt + 1
+    end
+
+  be run_loop() =>
+    try
+      var digest: Digest = Digest.md5()
+      cycle()
+      for f in dish.values() do
+        digest.append(f.clone())?
+      end
+      hh = digest.final()
+      Debug.out(ToHexString(hh))
+      score_dish()
+    else
+      Debug.out("Digesting failed")
+    end
+
+
+  fun ref cycle() =>
+    try
+      slide_north()?
+      rotate_right()
+      slide_north()?
+      rotate_right()
+      slide_north()?
+      rotate_right()
+      slide_north()?
+      rotate_right()
+    else
+      Debug.out("Boom")
+    end
+
+  fun ref rotate_right() =>
+    for (row, cols) in dish.pairs() do
+      for col in Range(0, cols.size()) do
+        try
+          disht(col)?.update((disht(col)?.size() - 1) - row, cols(col)?)?
+        else
+          Debug.out("Could not rotate")
+        end
+      end
+    end
+    disht = dish = disht
 
   fun score_dish() =>
     var score: USize = 0
@@ -60,8 +110,7 @@ actor FileRunner
         end
       end
     end
-    Debug.out("Score: " + score.string())
-
+    Debug.out(cnt.string() + " -> " + score.string())
 
 
   fun ref slide_north() ? =>
@@ -94,3 +143,13 @@ actor FileRunner
     for line in dish.values() do
       Debug.out(line.clone())
     end
+
+/*
+96061 -- Boogie (rem 6)
+96064
+96063
+96064
+96077
+96079
+96078
+*/
