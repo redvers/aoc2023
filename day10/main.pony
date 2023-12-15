@@ -108,6 +108,7 @@ LJ...
 //      execcnt = execcnt - 1
     end
     Debug.out("MaxDist: " + (potato_counter - 1).string())
+    display_warren()
 
 
   fun ref find_connectors(rl: USize, rc: USize): Array[(USize, USize)] ? =>
@@ -209,6 +210,20 @@ LJ...
       false
     end
     false
+
+  be display_warren() =>
+      let line: String ref = recover ref String end
+    for f in score.values() do
+      line.clear()
+      for g in f.values() do
+        if (g > 0) then
+          line.push('X')
+        else
+          line.push('.')
+        end
+      end
+      Debug.out(line)
+    end
 
 
 primitive NorthSouth fun apply(): U8 => '|'

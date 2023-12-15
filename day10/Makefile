@@ -1,6 +1,6 @@
 all:
 	corral run -- ponyc -d .
-	./day10 file2.txt
+	./day10 file3.txt
 
 prod:
 	corral run -- ponyc .
