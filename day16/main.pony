@@ -29,6 +29,8 @@ actor FileRunner
   var beams: SetIs[Beam] = SetIs[Beam]
   var loopdetect: Array[Array[U8]] = Array[Array[U8]]
 
+  var peak_power: USize = 0
+
   new create(stdout': OutStream tag, fileauth': FileAuth val, filename': String val) =>
     stdout = stdout'
     fileauth = fileauth'
@@ -42,10 +44,6 @@ actor FileRunner
       let lines: FileLines = FileLines(file)
 
       for line' in lines do
-        var scoreline: Array[USize] = Array[USize].init(0, line'.size())
-        var loopdline: Array[U8] = Array[U8].init(0, line'.size())
-        score.push(scoreline)
-        loopdetect.push(loopdline)
         board.push(consume line')
       end
     else
@@ -56,33 +54,96 @@ actor FileRunner
       row_max = board.size()
       col_max = board(0)?.size()
     else
-      Debug.out("I have no board data")
+      None
+      //Debug.out("I have no board data")
     end
 
-    beams.set(Beam) // Our initial beam, from 0,0 - heading Right
 
+    // From Left
+    for row in Range(0, row_max) do
+      let beam: Beam = Beam
+      beam.row = row
+      beam.col = 0
+      beam.direction = Right
+
+      init_vars()
+      beams.set(beam) // Our initial beam, from 0,0 - heading Right
+
+      roll_tide(row, Left)
+    end
+    // From Right
+    for row in Range(0, row_max) do
+      let beam: Beam = Beam
+      beam.row = row
+      beam.col = col_max - 1
+      beam.direction = Left
+
+      init_vars()
+      beams.set(beam) // Our initial beam, from 0,0 - heading Right
+
+      roll_tide(row, Right)
+    end
+    // From Top
+    for col in Range(0, col_max) do
+      let beam: Beam = Beam
+      beam.row = 0
+      beam.col = col
+      beam.direction = Down
+
+      init_vars()
+      beams.set(beam) // Our initial beam, from 0,0 - heading Right
+
+      roll_tide(col, Up)
+    end
+    // From Bottom
+    for col in Range(0, col_max) do
+      let beam: Beam = Beam
+      beam.row = row_max -1
+      beam.col = col
+      beam.direction = Up
+
+      init_vars()
+      beams.set(beam) // Our initial beam, from 0,0 - heading Right
+
+      roll_tide(col, Down)
+    end
+
+    stdout.print("Peak Power: " + peak_power.string())
+
+  fun ref roll_tide(r: USize, dir: Direction) =>
     while (beams.size() > 0) do
-      Debug.out("")
-      
       for beam in beams.values() do
         tick(beam)
       end
-      display_board_score()
-      Debug.out("Beam Count: " + beams.size().string() + ", Score: " + score_board().string())
     end
+    var s: USize = score_board()
+    stdout.print(s.string() + " " + dir.string() +
+    "[" + r.string() + "]")
 
+    if (s > peak_power) then peak_power = s end
+
+
+  fun ref init_vars() =>
+    score.clear()
+    loopdetect.clear()
+    for row in Range(0, row_max) do
+      var scoreline: Array[USize] = Array[USize].init(0, col_max)
+      var loopdline: Array[U8] = Array[U8].init(0, col_max)
+      score.push(scoreline)
+      loopdetect.push(loopdline)
+    end
 
   fun ref tick(beam: Beam) =>
     if ((beam.row == -1) or (beam.row == row_max) or
         (beam.col == -1) or (beam.col == col_max)) then
       beams.unset(beam)
-      Debug("beam deleted")
+//      Debug("beam deleted")
       return
     end
     //Array[Array[USize]] = Array[Array[USize]]
 
     try
-      if ((loopdetect(beam.row)?(beam.col)? and beam.direction.enum()) > 0) then beams.unset(beam) ; Debug.out("loop removed") end
+      if ((loopdetect(beam.row)?(beam.col)? and beam.direction.enum()) > 0) then beams.unset(beam) end
     end
 
 
@@ -92,7 +153,8 @@ actor FileRunner
         loopdetect(beam.row)?(beam.col)? or beam.direction.enum()
       )?
     else
-      Debug.out("I should never happen")
+      None
+//      Debug.out("I should never happen")
     end
     match beam.direction
     | let d: Up => move_up(beam)
@@ -102,7 +164,7 @@ actor FileRunner
     end
 
   fun ref move_right(beam: Beam) => None
-    Debug.out("R(" + beam.row.string() + "," + beam.col.string() + ")")
+//    Debug.out("R(" + beam.row.string() + "," + beam.col.string() + ")")
     try
       match board(beam.row)?(beam.col)?
       | let t: U8 if (t == '.') => beam.col = beam.col + 1
@@ -126,13 +188,13 @@ actor FileRunner
         beams.unset(beam)
       end
     else
-      Debug.out("I ran off the board(R)")
+      //Debug.out("I ran off the board(R)")
       beams.unset(beam)
-      Debug("beam deleted")
+      //Debug("beam deleted")
     end
     
   fun ref move_left(beam: Beam) => None
-    Debug.out("L(" + beam.row.string() + "," + beam.col.string() + ")")
+    //Debug.out("L(" + beam.row.string() + "," + beam.col.string() + ")")
     try
       match board(beam.row)?(beam.col)?
       | let t: U8 if (t == '.') => beam.col = beam.col - 1
@@ -156,13 +218,13 @@ actor FileRunner
         beams.unset(beam)
       end
     else
-      Debug.out("I ran off the board(L)")
+      //Debug.out("I ran off the board(L)")
       beams.unset(beam)
-      Debug("beam deleted")
+      //Debug("beam deleted")
     end
 
   fun ref move_down(beam: Beam) => None
-    Debug.out("D(" + beam.row.string() + "," + beam.col.string() + ")")
+    //Debug.out("D(" + beam.row.string() + "," + beam.col.string() + ")")
     try
       match board(beam.row)?(beam.col)?
       | let t: U8 if (t == '.') => beam.row = beam.row + 1
@@ -186,9 +248,9 @@ actor FileRunner
         beams.unset(beam)
       end
     else
-      Debug.out("I ran off the board(D)")
+      //Debug.out("I ran off the board(D)")
       beams.unset(beam)
-      Debug("beam deleted")
+      //Debug("beam deleted")
     end
 
   fun display_board_score() =>
@@ -243,7 +305,7 @@ actor FileRunner
   
 
   fun ref move_up(beam: Beam) => None
-    Debug.out("U(" + beam.row.string() + "," + beam.col.string() + ")")
+    //Debug.out("U(" + beam.row.string() + "," + beam.col.string() + ")")
     try
       match board(beam.row)?(beam.col)?
       | let t: U8 if (t == '.') => beam.row = beam.row - 1
@@ -267,7 +329,7 @@ actor FileRunner
         beams.unset(beam)
       end
     else
-      Debug.out("I ran off the board(U)")
+      //Debug.out("I ran off the board(U)")
       beams.unset(beam)
     end
 
@@ -281,18 +343,22 @@ class Beam
 primitive Up
   fun u8(): U8 => '^'
   fun enum(): U8 => 0b0001
+  fun string(): String => "Up"
 
 primitive Down
   fun u8(): U8 => 'v'
   fun enum(): U8 => 0b0010
+  fun string(): String => "Down"
 
 primitive Left
   fun u8(): U8 => '<'
   fun enum(): U8 => 0b0100
+  fun string(): String => "Left"
 
 primitive Right
   fun u8(): U8 => '>'
   fun enum(): U8 => 0b1000
+  fun string(): String => "Right"
 
 type Direction is (Up | Down | Left | Right)
   
