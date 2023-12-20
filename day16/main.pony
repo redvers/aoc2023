@@ -115,6 +115,8 @@ actor FileRunner
       for beam in beams.values() do
         tick(beam)
       end
+      display_board_score()
+      Debug.out("")
     end
     var s: USize = score_board()
     stdout.print(s.string() + " " + dir.string() +
